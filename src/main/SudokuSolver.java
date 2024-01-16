@@ -156,7 +156,7 @@ public class SudokuSolver {
      * @return the 0-indexed index the column belongs to (0, 1 or 2)
      */
     public int getColumnQuadrant(int rowIndex, int columnIndex) {
-        return (int) Math.floor(columnIndex / Math.sqrt(puzzle[rowIndex].length));
+        return (int) Math.floor(columnIndex / Math.sqrt(puzzle.size));
     }
 
     /**
@@ -165,32 +165,42 @@ public class SudokuSolver {
      * @return 0-indexed row index of the most top-left element
      */
     public int getCurrentQuadrantFirstRowIndex(int rowQuadrant) {
-        return (int) (rowQuadrant * Math.sqrt(puzzle.length));
+        return (int) (rowQuadrant * Math.sqrt(puzzle.size));
     }
 
     /**
+     * @deprecated This method will be removed since it's no longer needed.
      * This method returns the column of the first (top-left) element form a specific quadrant.
      * @param columnQuadrant the 0-indexed index of the given column quadrant
      * @param rowIndex the 0-indexed element row index (this is for future use, since for a 9x9 puzzle it will never change)
      * @return 0-indexed column index of the most top-left element
      */
+    @Deprecated
     public int getCurrentQuadrantFirstColumnIndex(int columnQuadrant, int rowIndex) {
-        return (int) (columnQuadrant * Math.sqrt(puzzle[rowIndex].length));
+        return (int) (columnQuadrant * Math.sqrt(puzzle.size));
     }
 
     /**
+     * @deprecated This method will be removed since now we can access all elements from a given quadrant through each
+     * {@link PuzzleElement} present on {@link Puzzle} member of this class. To access a PuzzleElement's quadrant you
+     * only need to access its {@code quadrant} property through {@link PuzzleElement#quadrant}.
+     * <br>
      * This method builds a list of integers that contains all elements from a given quadrant.
      * @param currentQuadrantFirstRowPosition 0-indexed row index of the current quadrant
      * @param currentQuadrantFirstColumnPosition 0-indexed column index of the current quadrant
      * @return a list of integer with all elements of the current quadrant (including the ones that are not set yet)
      */
+    @Deprecated
     public List<Integer> getCurrentQuadrantNumbers(int currentQuadrantFirstRowPosition,
                                                    int currentQuadrantFirstColumnPosition) {
         List<Integer> quadrantNumbers = new ArrayList<>();
-        for (int i = 0; i < Math.sqrt(puzzle.length); i += 1) {
-            for (int j = 0; j < Math.sqrt(puzzle[currentQuadrantFirstRowPosition + i].length); j += 1) {
+        for (int i = 0; i < Math.sqrt(puzzle.size); i += 1) {
+            for (int j = 0; j < Math.sqrt(puzzle.size); j += 1) {
                 quadrantNumbers.add(
-                        puzzle[currentQuadrantFirstRowPosition + i][currentQuadrantFirstColumnPosition + j]
+                        puzzle.getElementFromPosition(
+                                currentQuadrantFirstRowPosition + i,
+                                currentQuadrantFirstColumnPosition + j
+                        ).getValue()
                 );
             }
         }
@@ -324,9 +334,6 @@ public class SudokuSolver {
             element.setValueAndFlushCandidates(element.getCandidateWhenThereIsOnlyOne());
             puzzle.decreaseZerosInPuzzle();
         }
-//        searchHiddenSinglesForRow(positionData);
-//        searchHiddenSingleForColumn(positionData);
-//        searchHiddenSingleForQuadrant(positionData);
     }
 
     /**
