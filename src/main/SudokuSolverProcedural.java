@@ -53,9 +53,13 @@ import java.util.Optional;
  * <a href="https://github.com/Gretgor/HardSudokuSolver/blob/main/SudokuProblem.py">This is a sample of a Hard Sudoku
  * Solver using back track strategy.</a>
  */
-public class SudokuSolver {
+public class SudokuSolverProcedural {
 
-    private final Puzzle puzzle;
+    private final int[][] puzzle;
+
+    private int zerosInPuzzle = 0;
+
+    private final int[][][] puzzlePossibilities;
 
     private enum GivensInPuzzle {
         VERY_HARD(28),
@@ -83,12 +87,23 @@ public class SudokuSolver {
 
     private final int[] allPossibilities = { 1, 2, 3, 4, 5, 6, 7, 8, 9 };
 
-    public SudokuSolver(int[][] grid) throws IllegalArgumentException {
+    public SudokuSolverProcedural(int[][] grid) throws IllegalArgumentException {
         try {
-            this.puzzle = new Puzzle(grid);
+            this.puzzle = grid;
+            puzzlePossibilities = new int[grid.length][grid.length][grid.length];
         } catch (Exception exception) {
             throw new IllegalArgumentException("Invalid grid puzzle. The grid must be an int[][] type.\nMessage: " +
                     exception.getMessage());
+        }
+    }
+
+    private void countZerosInPuzzle() {
+        for (int[] row : puzzle) {
+            for (int element : row) {
+                if (element == 0) {
+                    zerosInPuzzle += 1;
+                }
+            }
         }
     }
 
@@ -99,14 +114,14 @@ public class SudokuSolver {
      *
      * @throws IllegalArgumentException when any aforementioned conditions are found
      */
-    private void startValidatingPuzzle() throws IllegalArgumentException {
-        if (puzzle.size != 9) throw new IllegalArgumentException("It's not a 9x9 grid.");
-        if (puzzle.zerosInPuzzle > MAX_UNKNOWN_POSITIONS_IN_PUZZLE) throw new IllegalArgumentException("Invalid puzzle. The " +
+    private void startValidatingPuzzle() {
+        if (puzzle.length != 9) throw new IllegalArgumentException("It's not a 9x9 grid.");
+        if (zerosInPuzzle > MAX_UNKNOWN_POSITIONS_IN_PUZZLE) throw new IllegalArgumentException("Invalid puzzle. The " +
                 "minimum of givens required to create an unique (with no multiple solutions) sudoku game is 17.");
-        for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
-            if (puzzle.getRowFromRowIndex(rowIndex).size() != 9) throw new IllegalArgumentException("The row at " + rowIndex +
+        for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
+            if (puzzle[rowIndex].length != 9) throw new IllegalArgumentException("The row at " + rowIndex +
                     " index has an invalid length.");
-            for (int element : puzzle.getRowAsArray(rowIndex)) {
+            for (int element : puzzle[rowIndex]) {
                 if (element != 0 && (element < 1 || element > 9)) throw new IllegalArgumentException("At least one " +
                         "element is not a valid digit. Only digits from 1 to 9 are allowed.");
             }
@@ -119,7 +134,7 @@ public class SudokuSolver {
      * @return an array with all elements of the row
      */
     public int[] getCurrentRow(int rowIndex) {
-        return puzzle.getRowAsArray(rowIndex);
+        return puzzle[rowIndex];
     }
 
     /**
@@ -128,8 +143,7 @@ public class SudokuSolver {
      * @return an array with all elements of the column
      */
     public int[] getCurrentColumn(int columnIndex) {
-//        return Arrays.stream(puzzle).mapToInt((row) -> row[columnIndex]).toArray();
-        return puzzle.getColumnAsArray(columnIndex);
+        return Arrays.stream(puzzle).mapToInt((row) -> row[columnIndex]).toArray();
     }
 
     /**
@@ -142,7 +156,7 @@ public class SudokuSolver {
      * @return the 0-indexed index the row belongs to (0, 1 or 2)
      */
     public int getRowQuadrant(int rowIndex) {
-        return (int) Math.floor(rowIndex / Math.sqrt(puzzle.size));
+        return (int) Math.floor(rowIndex / Math.sqrt(puzzle.length));
     }
 
     /**
@@ -283,7 +297,7 @@ public class SudokuSolver {
      *
      * @param position the data related to current position such as rowIndex, columnIndex, row, column and quadrant
      */
-    private void generateCandidatesFor(PositionData position) {
+    private void generateCandidatesFor(PositionDataProcedural position) {
         int[] possibilitiesForRow = symmetricDifference(position.row);
         int[] possibilitiesForColumn = symmetricDifference(position.column);
         int[] possibilitiesForQuadrant = symmetricDifference(position.quadrant);
@@ -292,21 +306,20 @@ public class SudokuSolver {
                 possibilitiesForRow, possibilitiesForColumn, possibilitiesForQuadrant
         );
 
-        puzzle.getElementFromPosition(position.rowIndex, position.columnIndex)
-                .setCandidates(possibleNumbersForCurrentPosition);
+        puzzlePossibilities[position.rowIndex][position.columnIndex] = possibleNumbersForCurrentPosition;
     }
 
     /**
-     * This method builds a {@link PositionData PositionData} for the current position.
+     * This method builds a {@link PositionDataProcedural PositionData} for the current position.
      * @param rowIndex current row index
      * @param columnIndex current column index
-     * @return a {@link PositionData PositionData} that contains all info related to the current position
+     * @return a {@link PositionDataProcedural PositionData} that contains all info related to the current position
      */
-    private PositionData generatePositionDataFor(int rowIndex, int columnIndex) {
+    private PositionDataProcedural generatePositionDataFor(int rowIndex, int columnIndex) {
         int[] currentRow = getCurrentRow(rowIndex);
         int[] currentColumn = getCurrentColumn(columnIndex);
         int[] currentQuadrant = getCurrentQuadrant(rowIndex, columnIndex);
-        return new PositionData(rowIndex, columnIndex, currentRow, currentColumn, currentQuadrant);
+        return new PositionDataProcedural(rowIndex, columnIndex, currentRow, currentColumn, currentQuadrant);
     }
 
     /**
@@ -316,13 +329,15 @@ public class SudokuSolver {
      * @param columnIndex current column index
      */
     public void checkCurrentPosition(int rowIndex, int columnIndex) {
-        PositionData positionData = generatePositionDataFor(rowIndex, columnIndex);
-        generateCandidatesFor(positionData);
+        PositionDataProcedural positionDataProcedural = generatePositionDataFor(rowIndex, columnIndex);
+        generateCandidatesFor(positionDataProcedural);
+        if (puzzlePossibilities[rowIndex][columnIndex].length == 1
+                && Arrays.stream(puzzlePossibilities[rowIndex][columnIndex]).findFirst().isPresent()) {
+            zerosInPuzzle -= 1;
 
-        var element = puzzle.getElementFromPosition(rowIndex, columnIndex);
-        if (element.hasOnlyOnePossibleCandidate()) {
-            element.setValueAndFlushCandidates(element.getCandidateWhenThereIsOnlyOne());
-            puzzle.decreaseZerosInPuzzle();
+            puzzle[rowIndex][columnIndex] =
+                    Arrays.stream(puzzlePossibilities[rowIndex][columnIndex]).findFirst().getAsInt();
+            puzzlePossibilities[rowIndex][columnIndex] = new int[] { };
         }
 //        searchHiddenSinglesForRow(positionData);
 //        searchHiddenSingleForColumn(positionData);
@@ -330,22 +345,14 @@ public class SudokuSolver {
     }
 
     /**
-     * @deprecated This method will be removed. Please use {@link PuzzleElement#isEmpty()} instead.
      * This is an auxiliary method to check if some position is still an empty cell (it has 0 as its value).
-     * @param position {@link PositionData PositionData} with current position info
+     * @param position {@link PositionDataProcedural PositionData} with current position info
      * @return {@code true} if the current positions has an empty value (e.g. it has zero as its value) or {@code false} otherwise
      */
-    @Deprecated
-    private boolean isPositionEmpty(PositionData position) {
-        return puzzle.getElementFromPosition(position.rowIndex, position.columnIndex).getValue() == 0;
+    private boolean isPositionEmpty(PositionDataProcedural position) {
+        return puzzle[position.rowIndex][position.columnIndex] == 0;
     }
 
-    /**
-     * An auxiliary method to verify if a set contains a given element.
-     * @param set the set of elements
-     * @param element element to be searched for on a set of elements
-     * @return {@code true} if the element is present on the set, {@code false} otherwise
-     */
     private boolean contains(int[] set, int element) {
         if (set.length == 0) return false;
         int index = 0;
@@ -356,21 +363,10 @@ public class SudokuSolver {
         return false;
     }
 
-    /**
-     * @deprecated This method will be removed since it's not necessary anymore.
-     * @return an integer array to be used to find unique occurrences
-     */
-    @Deprecated
     private int[] truthTable() {
         return new int[] { 0, 0, 0, 0, 0, 0, 0, 0, 0 };
     }
 
-    /**
-     * @deprecated This method will be removed and replaced for a more accurate one.
-     * @param setsOfCandidates a matrix containing all the sets of candidates for a row
-     * @return the 0-indexed index of the occurrence, -1 otherwise
-     */
-    @Deprecated
     private int findUniqueOccurrenceBetweenSets(int[][] setsOfCandidates) {
         int[] truthTable = truthTable();
         for (int[] set : setsOfCandidates) {
@@ -388,10 +384,10 @@ public class SudokuSolver {
     /**
      * @deprecated This method will be removed, since it's not actually searching for hidden singles on current
      * row.
-     * @param position position related data
+     * @param position
      */
     @Deprecated
-    private void searchHiddenSinglesForRow(PositionData position) {
+    private void searchHiddenSinglesForRow(PositionDataProcedural position) {
 //        int[] row = puzzle[position.rowIndex];
 //        int[][] rowWithCandidates = puzzlePossibilities[position.rowIndex];
 //
@@ -429,66 +425,66 @@ public class SudokuSolver {
     /**
      * @deprecated This method will be removed, since it's not actually searching for hidden singles on current
      * column.
-     * @param position position related data
+     * @param position
      */
     @Deprecated
-    private void searchHiddenSingleForColumn(PositionData position) {
-//        for (int possibleCandidate : allPossibilities) {
-//
-//            int countMatchesForPossibleCandidate = 0;
-//
-//            for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
-//
-//                int[] candidatesForPosition = puzzlePossibilities[rowIndex][position.columnIndex];
-//
-//                for (int candidate : candidatesForPosition) {
-//                    if (candidate == possibleCandidate) {
-//                        countMatchesForPossibleCandidate += 1;
-//                    }
-//                }
-//
-//                if (countMatchesForPossibleCandidate == 1 && isPositionEmpty(position)) {
-//                    zerosInPuzzle -= 1;
-//                    puzzle[position.rowIndex][position.columnIndex] = possibleCandidate;
-//                }
-//            }
-//        }
+    private void searchHiddenSingleForColumn(PositionDataProcedural position) {
+        for (int possibleCandidate : allPossibilities) {
+
+            int countMatchesForPossibleCandidate = 0;
+
+            for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
+
+                int[] candidatesForPosition = puzzlePossibilities[rowIndex][position.columnIndex];
+
+                for (int candidate : candidatesForPosition) {
+                    if (candidate == possibleCandidate) {
+                        countMatchesForPossibleCandidate += 1;
+                    }
+                }
+
+                if (countMatchesForPossibleCandidate == 1 && isPositionEmpty(position)) {
+                    zerosInPuzzle -= 1;
+                    puzzle[position.rowIndex][position.columnIndex] = possibleCandidate;
+                }
+            }
+        }
     }
 
     /**
      * @deprecated This method will be removed, since it's not actually searching for hidden singles on current
      * quadrant.
-     * @param position position related data
+     * @param position
      */
     @Deprecated
-    private void searchHiddenSingleForQuadrant(PositionData position) {
-//        for (int possibleCandidate : allPossibilities) {
-//
-//            int countMatchesForPossibleCandidate = 0;
-//
-//            int rowQuadrant = getRowQuadrant(position.rowIndex);
-//            int columnQuadrant = getColumnQuadrant(position.rowIndex, position.columnIndex);
-//            int currentQuadrantFirstRowPosition = getCurrentQuadrantFirstRowIndex(rowQuadrant);
-//            int currentQuadrantFirstColumnPosition = getCurrentQuadrantFirstColumnIndex(columnQuadrant, position.rowIndex);
-//
-//            for (int i = 0; i < Math.sqrt(puzzle.length); i += 1) {
-//                for (int j = 0; j < Math.sqrt(puzzle[getCurrentQuadrantFirstRowIndex(rowQuadrant) + i].length); j += 1) {
-//
-//                    var candidates = puzzlePossibilities[currentQuadrantFirstRowPosition + i][currentQuadrantFirstColumnPosition + j];
-//
-//                    for (int candidate : candidates) {
-//                        if (candidate == possibleCandidate) {
-//                            countMatchesForPossibleCandidate += 1;
-//                        }
-//                    }
-//
-//                    if (countMatchesForPossibleCandidate == 1 && isPositionEmpty(position)) {
-//                        zerosInPuzzle -= 1;
-//                        puzzle[position.rowIndex][position.columnIndex] = possibleCandidate;
-//                    }
-//                }
-//            }
-//        }
+    private void searchHiddenSingleForQuadrant(PositionDataProcedural position) {
+        for (int possibleCandidate : allPossibilities) {
+
+            int countMatchesForPossibleCandidate = 0;
+
+            int rowQuadrant = getRowQuadrant(position.rowIndex);
+            int columnQuadrant = getColumnQuadrant(position.rowIndex, position.columnIndex);
+            int currentQuadrantFirstRowPosition = getCurrentQuadrantFirstRowIndex(rowQuadrant);
+            int currentQuadrantFirstColumnPosition = getCurrentQuadrantFirstColumnIndex(columnQuadrant, position.rowIndex);
+
+            for (int i = 0; i < Math.sqrt(puzzle.length); i += 1) {
+                for (int j = 0; j < Math.sqrt(puzzle[getCurrentQuadrantFirstRowIndex(rowQuadrant) + i].length); j += 1) {
+
+                    var candidates = puzzlePossibilities[currentQuadrantFirstRowPosition + i][currentQuadrantFirstColumnPosition + j];
+
+                    for (int candidate : candidates) {
+                        if (candidate == possibleCandidate) {
+                            countMatchesForPossibleCandidate += 1;
+                        }
+                    }
+
+                    if (countMatchesForPossibleCandidate == 1 && isPositionEmpty(position)) {
+                        zerosInPuzzle -= 1;
+                        puzzle[position.rowIndex][position.columnIndex] = possibleCandidate;
+                    }
+                }
+            }
+        }
     }
 
     /**
@@ -510,14 +506,13 @@ public class SudokuSolver {
      *     return grid
      */
     private void findHiddenPairs() {
-        for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
-//            int[] row = puzzle.getRowAsArray(rowIndex);
-            int[] countOccurrences = new int[puzzle.size];
-            for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
-                if (puzzle.getElementFromPosition(rowIndex, columnIndex).isEmpty()) {
-                    var candidates = puzzle.getElementFromPosition(rowIndex, columnIndex).getCandidatesAsArray();
-                    for (int candidate : candidates) {
-                        countOccurrences[candidate - 1] += 1;
+        for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
+            int[] row = puzzle[rowIndex];
+            int[] countOccurrences = new int[puzzle.length];
+            for (int columnIndex = 0; columnIndex < puzzle.length; columnIndex += 1) {
+                if (puzzle[rowIndex][columnIndex] == 0) {
+                    for (int possibility : puzzlePossibilities[rowIndex][columnIndex]) {
+                        countOccurrences[possibility - 1] += 1;
                     }
                 }
             }
@@ -534,33 +529,122 @@ public class SudokuSolver {
     /**
      * This method solves easy sudoku puzzles via brute force strategy.
      */
-    public void tryToSolveUsingBruteForce() {
-        for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
-            for (int columnIndex = 0; columnIndex < puzzle.getRowAsArray(rowIndex).length; columnIndex += 1) {
-                if (puzzle.getElementFromPosition(rowIndex, columnIndex).isEmpty()) {
+    public void solveEasyMethod() {
+        for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
+            for (int columnIndex = 0; columnIndex < puzzle[rowIndex].length; columnIndex += 1) {
+                if (puzzle[rowIndex][columnIndex] == 0) {
                     checkCurrentPosition(rowIndex, columnIndex);
                 }
             }
         }
     }
 
-    private void applyMethodsToSolvePuzzle() {
-        tryToSolveUsingBruteForce();
+    /**
+     * @deprecated This method isn't doing what it's supposed to do. It's making some erroneous calculation for
+     * some edge cases.
+     */
+    @Deprecated
+    public void solveMediumMethod() {
+        for (int rowIndex = 0; rowIndex < puzzle.length; rowIndex += 1) {
+            for (int columnIndex = 0; columnIndex < puzzle[rowIndex].length; columnIndex += 1) {
+                if (puzzle[rowIndex][columnIndex] == 0) {
+                    checkCurrentPosition(rowIndex, columnIndex);
+                    if (puzzle[rowIndex][columnIndex] == 0) {
+                        int[][] currentRowCandidates = puzzlePossibilities[rowIndex];
+                        int[][] currentColumnCandidates = new int[puzzle.length][puzzle.length];
+                        for (int i = 0; i < puzzle.length; i += 1) {
+                            currentColumnCandidates[i] = puzzlePossibilities[i][columnIndex];
+                        }
+                        int[][] currentQuadrantCandidates = new int[puzzle.length][puzzle.length];
+                        int rowQuadrant = getRowQuadrant(rowIndex);
+                        int columnQuadrant = getColumnQuadrant(rowIndex, columnIndex);
+                        int quadrantFirstRowIndex = getCurrentQuadrantFirstRowIndex(rowQuadrant);
+                        int quadrantFirstColumnIndex = getCurrentQuadrantFirstColumnIndex(columnQuadrant, rowIndex);
+                        List<int[]> auxQuadrantNumbers = new ArrayList<>();
+                        for (int i = 0; i < Math.sqrt(puzzle.length); i += 1) {
+                            for (int j = 0; j < Math.sqrt(puzzle.length); j += 1) {
+                                var elements = puzzlePossibilities[quadrantFirstRowIndex + i][quadrantFirstColumnIndex + j];
+                                auxQuadrantNumbers.add(elements);
+                            }
+                        }
+                        for (int i = 0; i < puzzle.length; i += 1) {
+                            currentQuadrantCandidates[i] = auxQuadrantNumbers.get(i);
+                        }
+
+                        int uniqueForRow = findUniqueOccurrenceBetweenSets(currentRowCandidates);
+                        if (uniqueForRow > 0) {
+
+                            for (int j = 0; j < puzzle.length; j += 1) {
+                                if (contains(puzzlePossibilities[rowIndex][j], uniqueForRow)) {
+                                    puzzle[rowIndex][j] = uniqueForRow;
+                                    puzzlePossibilities[rowIndex][j] = new int[] { uniqueForRow };
+                                    zerosInPuzzle -= 1;
+                                }
+                            }
+
+                        }
+
+                        int uniqueForColumn = findUniqueOccurrenceBetweenSets(currentColumnCandidates);
+                        if (uniqueForColumn > 0) {
+                            for (int i = 0; i < puzzle.length; i += 1) {
+                                if (contains(puzzlePossibilities[i][columnIndex], uniqueForRow)) {
+                                    puzzle[i][columnIndex] = uniqueForRow;
+                                    puzzlePossibilities[i][columnIndex] = new int[] { uniqueForRow };
+                                    zerosInPuzzle -= 1;
+                                }
+                            }
+                        }
+
+                        int uniqueForQuadrant = findUniqueOccurrenceBetweenSets(currentQuadrantCandidates);
+                        if (uniqueForQuadrant > 0) {
+                            for (int i = 0; i < Math.sqrt(puzzle.length); i += 1) {
+                                for (int j = 0; j < Math.sqrt(puzzle.length); j += 1) {
+                                    if (contains(puzzlePossibilities[quadrantFirstRowIndex + i][quadrantFirstColumnIndex + j], uniqueForQuadrant)) {
+                                        puzzle[quadrantFirstRowIndex + i][quadrantFirstColumnIndex + j] = uniqueForQuadrant;
+                                        puzzlePossibilities[quadrantFirstRowIndex + i][quadrantFirstColumnIndex + j] = new int[] { uniqueForQuadrant };
+                                        zerosInPuzzle -= 1;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    public void solveHardMethod() {
+
+    }
+
+    public void solveVeryHardMethod() {
+
+    }
+
+    private void chooseSolverMethod() {
+        if (zerosInPuzzle <= GivensInPuzzle.EASY.zerosOnPuzzle()) {
+            solveEasyMethod();
+        } else if (zerosInPuzzle < GivensInPuzzle.HARD.zerosOnPuzzle() && zerosInPuzzle >= GivensInPuzzle.MEDIUM.zerosOnPuzzle()) {
+            solveMediumMethod();
+        } else if (zerosInPuzzle < GivensInPuzzle.VERY_HARD.zerosOnPuzzle() && zerosInPuzzle >= GivensInPuzzle.HARD.zerosOnPuzzle()) {
+            solveHardMethod();
+        } else {
+            solveVeryHardMethod();
+        }
     }
 
     public int[][] solve() {
-        if (this.puzzle == null) throw new IllegalArgumentException("Puzzle is empty.");
-        puzzle.setInitialZerosInPuzzle();
+        countZerosInPuzzle();
         startValidatingPuzzle();
-        while (puzzle.zerosInPuzzle > 0) {
-            applyMethodsToSolvePuzzle();
+        while (zerosInPuzzle > 0) {
+            chooseSolverMethod();
         }
-        return puzzle.convertToGrid();
+        return puzzle;
     }
 }
 
-class Candidate {
-    int value;
+class PossibilityProcedural {
+    int possibility;
     boolean isAHiddenSingle;
     boolean isPartOfHiddenPair;
     boolean isPartOfHiddenTriple;
@@ -568,187 +652,60 @@ class Candidate {
     boolean isPartOfNakedPair;
     boolean isPartOfNakedTriple;
 
-    Candidate(int value) {
-        this.value = value;
-    }
-
 }
 
-class PuzzleElement {
-
+class PuzzleElementProcedural {
     int rowIndex;
     int columnIndex;
-    int quadrant;
-    private int value;
-    private List<Candidate> candidates;
+    int value;
+    List<PossibilityProcedural> possibilities;
 
-    boolean hasOnlyOnePossibleCandidate() {
-        return candidates.size() == 1;
-    }
-
-    int getCandidateWhenThereIsOnlyOne() {
-        if (hasOnlyOnePossibleCandidate()) return candidates.get(0).value;
-        return -1;
-    }
-
-    PuzzleElement(int rowIndex, int columnIndex, int value) {
+    PuzzleElementProcedural(int rowIndex, int columnIndex, int value) {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
         this.value = value;
-        calculatePositionQuadrant();
-    }
-
-    /**
-     * This method calculates the 0-indexed index of the position's quadrant. This info will be saved in
-     * {@link PuzzleElement#quadrant} property. Below there is kind of a table used to explore and to define this
-     * equation.
-     * <br>
-     * Quadrant 0 -> (0,0) (0,1) (0,2) Quadrant 1 -> (0,3) (0,4) (0,5) Quadrant 2 -> (0,6) (0,7) (0,8) |
-     * Quadrant 0 -> (1,0) (1,1) (1,2) Quadrant 1 -> (1,3) (1,4) (1,5) Quadrant 2 -> (1,6) (1,7) (1,8) | -> + 0
-     * Quadrant 0 -> (2,0) (2,1) (2,2) Quadrant 1 -> (2,3) (2,4) (2,5) Quadrant 2 -> (2,6) (2,7) (2,8) |
-     * <br>
-     * Quadrant 3 -> (3,0) (4,1) (3,2) Quadrant 4 -> (3,3) (3,4) (3,5) Quadrant 5 -> (3,6) (3,7) (3,8) |
-     * Quadrant 3 -> (4,0) (4,1) (4,2) Quadrant 4 -> (4,3) (4,4) (4,5) Quadrant 5 -> (4,6) (4,7) (4,8) | -> + 2
-     * Quadrant 3 -> (5,0) (5,1) (5,2) Quadrant 4 -> (5,3) (5,4) (5,5) Quadrant 5 -> (5,6) (5,7) (5,8) |
-     * <br>
-     * Quadrant 6 -> (6,0) (6,1) (6,2) Quadrant 7 -> (6,3) (6,4) (6,5) Quadrant 8 -> (6,6) (6,7) (6,8) |
-     * Quadrant 6 -> (7,0) (7,1) (7,2) Quadrant 7 -> (7,3) (7,4) (7,5) Quadrant 8 -> (7,6) (7,7) (7,8) | -> + 4
-     * Quadrant 6 -> (8,0) (8,1) (8,2) Quadrant 7 -> (8,3) (8,4) (8,5) Quadrant 8 -> (8,6) (8,7) (8,8) |
-     * <br>
-     * For rows from 0 to 2
-     * Math.floor(0..2 / Math.sqrt(9)) + Math.floor(columnIndex / Math.sqrt(9)) + 0
-     * For rows from 3 to 5
-     * Math.floor(3..5 / Math.sqrt(9)) + Math.floor(columnIndex / Math.sqrt(9)) + 2
-     * For rows from 6 to 8
-     * Math.floor(6..8 / Math.sqrt(9)) + Math.floor(columnIndex / Math.sqrt(9)) + 4
-     */
-    private void calculatePositionQuadrant() {
-        // TODO: This formulae can be improved to be more flexible and reusable
-        this.quadrant = this.rowIndex / 3 * 3 + this.columnIndex / 3;
-    }
-
-    /**
-     * This method sets the value for this {@link PuzzleElement} only, and only if, the current value is set to 0,
-     * which means that the current element hasn't been set yet. It throws a {@link RuntimeException} otherwise.
-     * @param value the value to be set to current element
-     * @throws RuntimeException it throws an exception if this value isn't empty (e.g. this value is not equals zero)
-     */
-    public void setValueAndFlushCandidates(int value) throws RuntimeException {
-        if (isNotEmpty()) throw new RuntimeException("This value has already been set.");
-        this.value = value;
-        this.candidates = new ArrayList<>();
-    }
-
-    public int getValue() {
-        return this.value;
-    }
-
-    public int[] getCandidatesAsArray() {
-        int[] candidatesAsArray = new int[candidates.size()];
-        for (int index = 0; index < candidates.size(); index += 1) {
-            candidatesAsArray[index] = candidates.get(index).value;
-        }
-        return candidatesAsArray;
-    }
-
-    public List<Candidate> getCandidates() {
-        return candidates;
-    }
-
-    public void setCandidates(int[] candidates) {
-        for (int candidate : candidates) {
-            this.candidates.add(new Candidate(candidate));
-        }
     }
 
     boolean isEmpty() { return this.value == 0; }
-
-    boolean isNotEmpty() { return this.value != 0; }
 }
 
-class Puzzle {
+class PuzzleProcedural {
+    public static final int SIZE = 9;
+    List<List<PuzzleElementProcedural>> puzzle;
 
-    int zerosInPuzzle = 0;
-    public int size;
-    List<List<PuzzleElement>> puzzle;
-
-    Puzzle(int[][] grid) {
+    PuzzleProcedural(int[][] grid) {
         puzzle = new ArrayList<>();
-        this.size = grid.length;
-        for (int rowIndex = 0; rowIndex < this.size; rowIndex += 1) {
-            var newRow = new ArrayList<PuzzleElement>();
-            for (int columnIndex = 0; columnIndex < this.size; columnIndex += 1) {
-                PuzzleElement puzzleElement = new PuzzleElement(rowIndex, columnIndex, grid[rowIndex][columnIndex]);
-                newRow.add(puzzleElement);
+        for (int rowIndex = 0; rowIndex < SIZE; rowIndex += 1) {
+            var newRow = new ArrayList<PuzzleElementProcedural>();
+            for (int columnIndex = 0; columnIndex < SIZE; columnIndex += 1) {
+                PuzzleElementProcedural puzzleElementProcedural = new PuzzleElementProcedural(rowIndex, columnIndex, grid[rowIndex][columnIndex]);
+                newRow.add(puzzleElementProcedural);
             }
             puzzle.add(newRow);
         }
     }
 
-    PuzzleElement getElementFromPosition(int rowIndex, int columnIndex) {
+    PuzzleElementProcedural getElementFromPosition(int rowIndex, int columnIndex) {
         return puzzle.get(rowIndex).get(columnIndex);
     }
 
-    void setElementForPosition(int rowIndex, int columnIndex, int value) throws RuntimeException {
-        puzzle.get(rowIndex).get(columnIndex).setValueAndFlushCandidates(value);
-    }
-
-    List<PuzzleElement> getRowFromRowIndex(int rowIndex) {
-        return puzzle.get(rowIndex);
-    }
-
-    List<PuzzleElement> getColumnFromColumnIndex(int columnIndex) {
-        List<PuzzleElement> columnElements = new ArrayList<>();
-        for (int rowIndex = 0; rowIndex < this.size; rowIndex += 1) {
-            columnElements.add(puzzle.get(rowIndex).get(columnIndex));
-        }
-        return columnElements;
-    }
-
-    int[] getRowAsArray(int rowIndex) {
-        int[] rowAsArray = new int[this.size];
-        for (int currentColumnIndex = 0; currentColumnIndex < this.size; currentColumnIndex += 1) {
-            rowAsArray[currentColumnIndex] = puzzle.get(rowIndex).get(currentColumnIndex).getValue();
-        }
-        return rowAsArray;
-    }
-
-    int[] getColumnAsArray(int columnIndex) {
-        int[] columnAsArray = new int[this.size];
-        for (int currentRowIndex = 0; currentRowIndex < this.size; currentRowIndex += 1) {
-            columnAsArray[currentRowIndex] = puzzle.get(currentRowIndex).get(columnIndex).getValue();
-        }
-        return columnAsArray;
-    }
-
-    void setInitialZerosInPuzzle() {
-        for (int rowIndex = 0; rowIndex < this.size; rowIndex += 1) {
-            for (int columnIndex = 0; columnIndex < this.size; columnIndex += 1) {
-                if (getElementFromPosition(rowIndex, columnIndex).isEmpty()) zerosInPuzzle += 1;
-            }
-        }
-    }
-
     int[][] convertToGrid() {
-        int[][] grid = new int[this.size][this.size];
-        for (int rowIndex = 0; rowIndex < this.size; rowIndex += 1) {
-            for (int columnIndex = 0; columnIndex < this.size; columnIndex += 1) {
-                grid[rowIndex][columnIndex] = puzzle.get(rowIndex).get(columnIndex).getValue();
+        int[][] grid = new int[SIZE][SIZE];
+        for (int rowIndex = 0; rowIndex < SIZE; rowIndex += 1) {
+            for (int columnIndex = 0; columnIndex < SIZE; columnIndex += 1) {
+                grid[rowIndex][columnIndex] = puzzle.get(rowIndex).get(columnIndex).value;
             }
         }
         return grid;
     }
 
-    void decreaseZerosInPuzzle() {
-        this.zerosInPuzzle -= 1;
-    }
 }
 
-class PositionCoordinates {
+class PositionCoordinatesProcedural {
     int x;
     int y;
 
-    PositionCoordinates(int x, int y) {
+    PositionCoordinatesProcedural(int x, int y) {
         this.x = x;
         this.y = y;
     }
@@ -770,7 +727,7 @@ class PositionCoordinates {
     }
 }
 
-class PositionData {
+class PositionDataProcedural {
     int rowIndex;
     int columnIndex;
     int[] row;
@@ -785,7 +742,7 @@ class PositionData {
      * @param column current column numbers
      * @param quadrant current quadrant numbers
      */
-    PositionData(int rowIndex, int columnIndex, int[] row, int[] column, int[] quadrant) {
+    PositionDataProcedural(int rowIndex, int columnIndex, int[] row, int[] column, int[] quadrant) {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
         this.row = row;
