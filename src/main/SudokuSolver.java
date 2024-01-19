@@ -183,7 +183,7 @@ public class SudokuSolver {
     /**
      * @deprecated This method will be removed since now we can access all elements from a given quadrant through each
      * {@link PuzzleElement} present on {@link Puzzle} member of this class. To access a PuzzleElement's quadrant you
-     * only need to access its {@code quadrant} property through {@link PuzzleElement#quadrant}.
+     * only need to access its {@code quadrant} property through {@link PuzzleElement#quadrantIndex}.
      * <br>
      * This method builds a list of integers that contains all elements from a given quadrant.
      * @param currentQuadrantFirstRowPosition 0-indexed row index of the current quadrant
@@ -286,37 +286,16 @@ public class SudokuSolver {
         return optionalValue.get();
     }
 
-    /**
-     * This method generates all candidates for a specific position and create an array wit all possible numbers
-     * for that position. This array is set into a 3x3 matrix that contains all possible numbers for all puzzle's
-     * positions.
-     *
-     * @param position the data related to current position such as rowIndex, columnIndex, row, column and quadrant
-     */
-    private void generateCandidatesFor(PositionData position) {
-        int[] possibilitiesForRow = symmetricDifference(position.row);
-        int[] possibilitiesForColumn = symmetricDifference(position.column);
-        int[] possibilitiesForQuadrant = symmetricDifference(position.quadrant);
+    private void generateCandidatesFor(PuzzleElement element) {
+        int[] possibilitiesForRow = symmetricDifference(puzzle.getRowAsArray(element.rowIndex));
+        int[] possibilitiesForColumn = symmetricDifference(puzzle.getColumnAsArray(element.columnIndex));
+        int[] possibilitiesForQuadrant =
+                symmetricDifference(puzzle.getQuadrantElementsValuesAsArray(element.quadrantIndex));
 
         int[] possibleNumbersForCurrentPosition = getIntersection(
                 possibilitiesForRow, possibilitiesForColumn, possibilitiesForQuadrant
         );
-
-        puzzle.getElementFromPosition(position.rowIndex, position.columnIndex)
-                .setCandidates(possibleNumbersForCurrentPosition);
-    }
-
-    /**
-     * This method builds a {@link PositionData PositionData} for the current position.
-     * @param rowIndex current row index
-     * @param columnIndex current column index
-     * @return a {@link PositionData PositionData} that contains all info related to the current position
-     */
-    private PositionData generatePositionDataFor(int rowIndex, int columnIndex) {
-        int[] currentRow = getCurrentRow(rowIndex);
-        int[] currentColumn = getCurrentColumn(columnIndex);
-        int[] currentQuadrant = getCurrentQuadrant(rowIndex, columnIndex);
-        return new PositionData(rowIndex, columnIndex, currentRow, currentColumn, currentQuadrant);
+        element.setCandidates(possibleNumbersForCurrentPosition);
     }
 
     /**
@@ -326,10 +305,8 @@ public class SudokuSolver {
      * @param columnIndex current column index
      */
     public void checkCurrentPosition(int rowIndex, int columnIndex) {
-        PositionData positionData = generatePositionDataFor(rowIndex, columnIndex);
-        generateCandidatesFor(positionData);
-
-        var element = puzzle.getElementFromPosition(rowIndex, columnIndex);
+        PuzzleElement element = puzzle.getElementFromPosition(rowIndex, columnIndex);
+        generateCandidatesFor(element);
         if (element.hasOnlyOnePossibleCandidate()) {
             element.setValueAndFlushCandidates(element.getCandidateWhenThereIsOnlyOne());
             puzzle.decreaseZerosInPuzzle();
@@ -340,7 +317,8 @@ public class SudokuSolver {
      * @deprecated This method will be removed. Please use {@link PuzzleElement#isEmpty()} instead.
      * This is an auxiliary method to check if some position is still an empty cell (it has 0 as its value).
      * @param position {@link PositionData PositionData} with current position info
-     * @return {@code true} if the current positions has an empty value (e.g. it has zero as its value) or {@code false} otherwise
+     * @return {@code true} if the current positions has an empty value (e.g. it has zero as its value) or
+     * {@code false} otherwise
      */
     @Deprecated
     private boolean isPositionEmpty(PositionData position) {
@@ -516,13 +494,13 @@ public class SudokuSolver {
      *     repeat the above steps for each column and each box
      *     return grid
      */
-    private void findHiddenPairs() {
+    private void findHiddenPairsInRows() {
         for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
-//            int[] row = puzzle.getRowAsArray(rowIndex);
             int[] countOccurrences = new int[puzzle.size];
             for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
-                if (puzzle.getElementFromPosition(rowIndex, columnIndex).isEmpty()) {
-                    var candidates = puzzle.getElementFromPosition(rowIndex, columnIndex).getCandidatesAsArray();
+                PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                if (currentElement.isEmpty()) {
+                    var candidates = currentElement.getCandidatesAsIntArray();
                     for (int candidate : candidates) {
                         countOccurrences[candidate - 1] += 1;
                     }
@@ -530,7 +508,78 @@ public class SudokuSolver {
             }
             int[] hiddenPairs = Arrays.stream(countOccurrences).filter(element -> element == 2).toArray();
             if (hiddenPairs.length >= 2) {
+                for (int hiddenPair : hiddenPairs) {
+                    for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
+                        PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                        boolean hiddenPairIsInCandidates = Arrays.stream(currentElement.getCandidatesAsIntArray())
+                                .anyMatch(element -> element == hiddenPair);
+                        if (currentElement.isEmpty() && hiddenPairIsInCandidates) {
+                            currentElement.setCandidates(new int[] { hiddenPair });
+                        }
+                    }
+                }
+            }
+        }
+    }
 
+    private void findHiddenPairsInColumns() {
+        for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
+            int[] countOccurrences = new int[puzzle.size];
+            for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
+                PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                if (currentElement.isEmpty()) {
+                    var candidates = currentElement.getCandidatesAsIntArray();
+                    for (int candidate : candidates) {
+                        countOccurrences[candidate - 1] += 1;
+                    }
+                }
+            }
+            int[] hiddenPairs = Arrays.stream(countOccurrences).filter(element -> element == 2).toArray();
+            if (hiddenPairs.length >= 2) {
+                for (int hiddenPair : hiddenPairs) {
+                    for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
+                        PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                        boolean hiddenPairIsInCandidates = Arrays.stream(currentElement.getCandidatesAsIntArray())
+                                .anyMatch(element -> element == hiddenPair);
+                        if (currentElement.isEmpty() && hiddenPairIsInCandidates) {
+                            currentElement.setCandidates(new int[] { hiddenPair });
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void findHiddenPairsInQuadrants() {
+        for (int quadrantIndex = 0; quadrantIndex < puzzle.size; quadrantIndex += 1) {
+            for (int rowIndex = 0; rowIndex < puzzle.size; rowIndex += 1) {
+                int[] countOccurrences = new int[puzzle.size];
+                for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
+                    PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                    if (currentElement.quadrantIndex == quadrantIndex) {
+                        if (currentElement.isEmpty()) {
+                            var candidates = currentElement.getCandidatesAsIntArray();
+                            for (int candidate : candidates) {
+                                countOccurrences[candidate - 1] += 1;
+                            }
+                        }
+                    }
+                }
+                int[] hiddenPairs = Arrays.stream(countOccurrences).filter(element -> element == 2).toArray();
+                if (hiddenPairs.length >= 2) {
+                    for (int hiddenPair : hiddenPairs) {
+                        for (int columnIndex = 0; columnIndex < puzzle.size; columnIndex += 1) {
+                            PuzzleElement currentElement = puzzle.getElementFromPosition(rowIndex, columnIndex);
+                            if (currentElement.quadrantIndex == quadrantIndex) {
+                                boolean hiddenPairIsInCandidates = Arrays.stream(currentElement.getCandidatesAsIntArray())
+                                        .anyMatch(element -> element == hiddenPair);
+                                if (currentElement.isEmpty() && hiddenPairIsInCandidates) {
+                                    currentElement.setCandidates(new int[] { hiddenPair });
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -553,10 +602,13 @@ public class SudokuSolver {
 
     private void applyMethodsToSolvePuzzle() {
         tryToSolveUsingBruteForce();
+        findHiddenPairsInRows();
+        findHiddenPairsInColumns();
+        findHiddenPairsInQuadrants();
     }
 
     public int[][] solve() {
-        if (this.puzzle == null) throw new IllegalArgumentException("Puzzle is empty.");
+        if (this.puzzle == null) throw new IllegalArgumentException("Puzzle cannot be null.");
         puzzle.setInitialZerosInPuzzle();
         startValidatingPuzzle();
         while (puzzle.zerosInPuzzle > 0) {
@@ -585,7 +637,7 @@ class PuzzleElement {
 
     int rowIndex;
     int columnIndex;
-    int quadrant;
+    int quadrantIndex;
     private int value;
     private List<Candidate> candidates;
 
@@ -602,12 +654,13 @@ class PuzzleElement {
         this.rowIndex = rowIndex;
         this.columnIndex = columnIndex;
         this.value = value;
-        calculatePositionQuadrant();
+        this.candidates = new ArrayList<>();
+        calculateAndSetPositionQuadrant();
     }
 
     /**
      * This method calculates the 0-indexed index of the position's quadrant. This info will be saved in
-     * {@link PuzzleElement#quadrant} property. Below there is kind of a table used to explore and to define this
+     * {@link PuzzleElement#quadrantIndex} property. Below there is kind of a table used to explore and to define this
      * equation.
      * <br>
      * Quadrant 0 -> (0,0) (0,1) (0,2) Quadrant 1 -> (0,3) (0,4) (0,5) Quadrant 2 -> (0,6) (0,7) (0,8) |
@@ -629,9 +682,9 @@ class PuzzleElement {
      * For rows from 6 to 8
      * Math.floor(6..8 / Math.sqrt(9)) + Math.floor(columnIndex / Math.sqrt(9)) + 4
      */
-    private void calculatePositionQuadrant() {
+    private void calculateAndSetPositionQuadrant() {
         // TODO: This formulae can be improved to be more flexible and reusable
-        this.quadrant = this.rowIndex / 3 * 3 + this.columnIndex / 3;
+        this.quadrantIndex = this.rowIndex / 3 * 3 + this.columnIndex / 3;
     }
 
     /**
@@ -650,6 +703,11 @@ class PuzzleElement {
         return this.value;
     }
 
+    /**
+     * @deprecated Use {@link PuzzleElement#getCandidatesAsIntArray()} instead.
+     * @return
+     */
+    @Deprecated
     public int[] getCandidatesAsArray() {
         int[] candidatesAsArray = new int[candidates.size()];
         for (int index = 0; index < candidates.size(); index += 1) {
@@ -662,7 +720,12 @@ class PuzzleElement {
         return candidates;
     }
 
+    public int[] getCandidatesAsIntArray() {
+        return candidates.stream().mapToInt(candidate -> candidate.value).toArray();
+    }
+
     public void setCandidates(int[] candidates) {
+        this.candidates = new ArrayList<>();
         for (int candidate : candidates) {
             this.candidates.add(new Candidate(candidate));
         }
@@ -680,6 +743,7 @@ class Puzzle {
     List<List<PuzzleElement>> puzzle;
 
     Puzzle(int[][] grid) {
+        requireNotNullOrEmpty(grid);
         puzzle = new ArrayList<>();
         this.size = grid.length;
         for (int rowIndex = 0; rowIndex < this.size; rowIndex += 1) {
@@ -696,12 +760,34 @@ class Puzzle {
         return puzzle.get(rowIndex).get(columnIndex);
     }
 
-    void setElementForPosition(int rowIndex, int columnIndex, int value) throws RuntimeException {
-        puzzle.get(rowIndex).get(columnIndex).setValueAndFlushCandidates(value);
-    }
-
     List<PuzzleElement> getRowFromRowIndex(int rowIndex) {
         return puzzle.get(rowIndex);
+    }
+
+    /**
+     * Returns a list with all elements from a given quadrant.
+     * @param index 0-indexed index of the quadrant
+     * @return a list with all {@link PuzzleElement}s from a given quadrant
+     */
+    List<PuzzleElement> getQuadrantElements(int index) {
+        List<PuzzleElement> quadrantElements = new ArrayList<>();
+        for (List<PuzzleElement> row : puzzle) {
+            for (PuzzleElement element : row) {
+                if (element.quadrantIndex == index) {
+                    quadrantElements.add(element);
+                }
+            }
+        }
+        return quadrantElements;
+    }
+
+    int[] getQuadrantElementsValuesAsArray(int index) {
+        int[] resultArray = new int[puzzle.size()];
+        List<PuzzleElement> quadrantPuzzleElements = getQuadrantElements(index);
+        for (int elementIndex = 0; elementIndex < quadrantPuzzleElements.size(); elementIndex += 1) {
+            resultArray[elementIndex] = quadrantPuzzleElements.get(elementIndex).getValue();
+        }
+        return resultArray;
     }
 
     List<PuzzleElement> getColumnFromColumnIndex(int columnIndex) {
@@ -749,34 +835,17 @@ class Puzzle {
     void decreaseZerosInPuzzle() {
         this.zerosInPuzzle -= 1;
     }
-}
 
-class PositionCoordinates {
-    int x;
-    int y;
-
-    PositionCoordinates(int x, int y) {
-        this.x = x;
-        this.y = y;
-    }
-
-    public int getX() {
-        return x;
-    }
-
-    public void setX(int x) {
-        this.x = x;
-    }
-
-    public int getY() {
-        return y;
-    }
-
-    public void setY(int y) {
-        this.y = y;
+    private void requireNotNullOrEmpty(int[][] grid) throws IllegalArgumentException {
+        if (grid == null) throw new IllegalArgumentException("Puzzle grid cannot be null.");
+        if (grid.length == 0) throw new IllegalArgumentException("Puzzle cannot be empty.");
+        for (int[] row : grid) {
+            if (row.length == 0) throw new IllegalArgumentException("Puzzle cannot contain empty rows");
+        }
     }
 }
 
+@Deprecated
 class PositionData {
     int rowIndex;
     int columnIndex;
